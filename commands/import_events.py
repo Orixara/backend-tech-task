@@ -9,7 +9,6 @@ from uuid import UUID
 
 import pandas as pd
 
-from config.settings import settings
 from database import get_db_contextmanager
 from repositories import EventRepository
 from schemas import EventCreateRequestSchema
