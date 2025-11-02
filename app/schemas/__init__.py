@@ -1,3 +1,9 @@
+from .auth import (
+    UserLoginSchema,
+    UserResponseSchema,
+    UserRegisterSchema,
+    TokenSchema,
+)
 from .event import (
     EventCreateRequestSchema,
     EventsBatchCreateRequestSchema,
@@ -11,6 +17,12 @@ from .event import (
 )
 
 __all__ = [
+    # Auth
+    "UserLoginSchema",
+    "UserRegisterSchema",
+    "UserResponseSchema",
+    "TokenSchema",
+    # Events
     "EventCreateRequestSchema",
     "EventsBatchCreateRequestSchema",
     "EventsBatchResponseSchema",
