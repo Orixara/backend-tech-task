@@ -11,6 +11,8 @@ from schemas import (
     TopEventsResponseSchema,
     RetentionResponseSchema,
 )
+from security.permissions import get_current_user
+from database.models import User
 
 
 router = APIRouter(prefix="/stats", tags=["Statistics"])
@@ -31,6 +33,7 @@ async def get_dau(
         description="End date (YYYY-MM-DD)",
         example="2025-01-31",
     ),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DAUResponseSchema:
     try:
@@ -85,6 +88,7 @@ async def get_top_events(
         le=100,
         description="Number of top events to return"
     ),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TopEventsResponseSchema:
     try:
@@ -140,6 +144,7 @@ async def get_retention(
         regex="^(daily|weekly)$",
         description="Period type: daily or weekly"
     ),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> RetentionResponseSchema:
     try:
