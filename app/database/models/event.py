@@ -2,7 +2,8 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, DateTime, Index, String, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PostgreSQL_UUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PostgreSQL_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -46,10 +47,10 @@ class Event(Base):
     )
 
     __table_args__ = (
-        Index('ix_events_user_occurred', 'user_id', 'occurred_at'),
-        Index('ix_events_type_occurred', 'event_type', 'occurred_at'),
-        Index('ix_events_user_type_occurred', 'user_id', 'event_type', 'occurred_at'),
-        Index('ix_events_archived_occurred', 'is_archived', 'occurred_at'),
+        Index("ix_events_user_occurred", "user_id", "occurred_at"),
+        Index("ix_events_type_occurred", "event_type", "occurred_at"),
+        Index("ix_events_user_type_occurred", "user_id", "event_type", "occurred_at"),
+        Index("ix_events_archived_occurred", "is_archived", "occurred_at"),
     )
 
     def __repr__(self):

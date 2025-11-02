@@ -1,10 +1,8 @@
 from typing import Optional
 
 import redis.asyncio as aioredis
-from redis.asyncio import Redis
-
 from config.settings import settings
-
+from redis.asyncio import Redis
 
 _redis_pool: Optional[Redis] = None
 
@@ -22,12 +20,14 @@ async def get_redis_pool() -> Redis:
 
     return _redis_pool
 
+
 async def close_redis_pool() -> None:
     global _redis_pool
 
     if _redis_pool is not None:
         await _redis_pool.close()
         _redis_pool = None
+
 
 async def get_redis() -> Redis:
     return await get_redis_pool()
