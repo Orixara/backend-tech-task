@@ -44,6 +44,9 @@ dependencies = [
     "black>=25.9.0,<26.0.0",
     "isort>=7.0.0,<8.0.0",
     "ruff>=0.8.0,<0.9.0",
+
+    # Analytics / Cold storage
+    "duckdb>=0.10.0,<1.0.0",
 ]
 
 [tool.poetry]
