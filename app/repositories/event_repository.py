@@ -4,7 +4,7 @@ from uuid import UUID
 
 from database.models import Event
 from schemas.event import EventCreateRequestSchema
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
