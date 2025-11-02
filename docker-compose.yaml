@@ -78,6 +78,28 @@ services:
     networks:
       - events_network
 
+  # Import data from CSV
+  importer:
+    build: .
+    container_name: events_importer
+    command: [ "python", "/commands/import_events.py", "/usr/src/data/events_sample.csv" ]
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    volumes:
+      - ./app:/usr/src/app
+      - ./data:/usr/src/data
+      - ./commands:/commands
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/usr/src/app
+    networks:
+      - events_network
+
+
 volumes:
   postgres_events_data:
     driver: local

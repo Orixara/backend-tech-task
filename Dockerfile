@@ -47,7 +47,10 @@ COPY ./data /usr/src/data
 COPY ./commands /commands
 
 # Ensure Unix-style line endings for scripts
-RUN dos2unix /commands/*.sh || true
+RUN dos2unix /commands/*.sh /commands/*.py || true
 
 # Add execute bit to commands files
-RUN chmod +x /commands/*.sh || true
+RUN chmod +x /commands/*.sh /commands/*.py || true
+
+# Create symlink for easy CLI access
+RUN ln -s /commands/import_events.py /usr/local/bin/import_events
