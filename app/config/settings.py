@@ -9,6 +9,16 @@ class BaseAppSettings(BaseSettings):
     BASE_DIR: Path = Path(__file__).parent.parent.parent
     DUCKDB_PATH: str = os.getenv("DUCKDB_PATH", str(BASE_DIR / "data" / "analytics.duckdb"))
 
+    SECRET_KEY_ACCESS: str = os.getenv(
+        "SECRET_KEY_ACCESS",
+        "dev-secret-access-key-change-in-production-min-32-characters-long"
+    )
+    SECRET_KEY_REFRESH: str = os.getenv(
+        "SECRET_KEY_REFRESH",
+        "dev-secret-refresh-key-change-in-production-min-32-characters-long"
+    )
+    JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")
+
     @property
     def duckdb_path_absolute(self) -> Path:
         path = Path(self.DUCKDB_PATH)
@@ -32,10 +42,6 @@ class Settings(BaseAppSettings):
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
 
-    # JWT
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
-    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
     model_config = SettingsConfigDict(
         extra="ignore",
@@ -68,10 +74,8 @@ class TestingSettings(BaseAppSettings):
     REDIS_PORT: int = 6379
     REDIS_DB: int = 1
 
-    # JWT
-    SECRET_KEY: str = "test-secret-key"
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    SECRET_KEY_ACCESS: str = "test-secret-access-key-for-testing"
+    SECRET_KEY_REFRESH: str = "test-secret-refresh-key-for-testing"
 
     @property
     def database_url(self) -> str:
