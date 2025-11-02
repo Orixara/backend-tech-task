@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from repositories import EventRepository
 from schemas import EventsBatchCreateRequestSchema, EventsBatchResponseSchema
+from security.permissions import get_current_user
+from database.models import User
 
 
 router = APIRouter(prefix="/events", tags=["Events"])
@@ -13,14 +15,11 @@ router = APIRouter(prefix="/events", tags=["Events"])
     "",
     status_code=status.HTTP_201_CREATED,
     summary="Ingest events",
-    description=
-    """
-    Accepts array of events and resending event 
-    with same event_id does not create duplicate.
-    """
+    description="Accepts array of events and resending event"
 )
 async def create_events(
     batch: EventsBatchCreateRequestSchema,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> EventsBatchResponseSchema:
     try:
