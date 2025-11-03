@@ -33,6 +33,8 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+*.duckdb
+*.wal
 
 # Logs
 *.log
