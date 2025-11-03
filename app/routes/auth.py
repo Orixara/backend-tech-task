@@ -1,19 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from database import get_db
 from database.models import User
+from exceptions.security import BaseSecurityError
+from fastapi import APIRouter, Depends, HTTPException, status
 from repositories.user_repository import UserRepository
 from schemas.auth import (
-    UserRegisterSchema,
-    UserLoginSchema,
     TokenSchema,
+    UserLoginSchema,
+    UserRegisterSchema,
     UserResponseSchema,
 )
 from security.permissions import get_current_user
-from security.token_manager import get_jwt_manager, JWTAuthManager
-from exceptions.security import BaseSecurityError
-
+from security.token_manager import JWTAuthManager, get_jwt_manager
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -44,6 +42,7 @@ async def register(
     new_user = await user_repo.create(user_data)
 
     return UserResponseSchema.model_validate(new_user)
+
 
 @router.post(
     "/login",
@@ -84,6 +83,7 @@ async def login(
         refresh_token=refresh_token,
         token_type="bearer",
     )
+
 
 @router.post(
     "/refresh",
@@ -130,6 +130,7 @@ async def refresh_token(
         refresh_token=new_refresh_token,
         token_type="bearer",
     )
+
 
 @router.get(
     "/me",

@@ -2,8 +2,7 @@ from contextlib import asynccontextmanager
 
 from database import close_redis_pool, get_redis_pool
 from fastapi import FastAPI
-
-from routes import events_router, stats_router, auth_router
+from routes import auth_router, events_router, stats_router
 
 
 @asynccontextmanager
@@ -23,6 +22,7 @@ app = FastAPI(
 app.include_router(events_router)
 app.include_router(stats_router)
 app.include_router(auth_router)
+
 
 @app.get("/health")
 async def health_check():

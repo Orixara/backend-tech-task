@@ -1,6 +1,6 @@
 import os
-import duckdb
 
+import duckdb
 from config.settings import settings
 
 
@@ -18,32 +18,40 @@ class DuckDBConnection:
         return self._conn
 
     def _initialize_schema(self):
-        self._conn.execute("""
+        self._conn.execute(
+            """
            CREATE TABLE IF NOT EXISTS events(
-               event_id    VARCHAR PRIMARY KEY,
+               event_id VARCHAR PRIMARY KEY,
                occurred_at TIMESTAMP NOT NULL,
-               user_id     VARCHAR   NOT NULL,
-               event_type  VARCHAR   NOT NULL,
-               properties  JSON,
-               created_at  TIMESTAMP NOT NULL,
+               user_id VARCHAR NOT NULL,
+               event_type VARCHAR NOT NULL,
+               properties JSON,
+               created_at TIMESTAMP NOT NULL,
                archived_at TIMESTAMP NOT NULL
            )
-        """)
+        """
+        )
 
-        self._conn.execute("""
+        self._conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_occurred_at
             ON events (occurred_at)
-        """)
+        """
+        )
 
-        self._conn.execute("""
+        self._conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_event_type
             ON events (event_type)
-        """)
+        """
+        )
 
-        self._conn.execute("""
+        self._conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_user_id
             ON events (user_id)
-        """)
+        """
+        )
 
     def close(self):
         if self._conn:

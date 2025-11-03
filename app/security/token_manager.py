@@ -1,11 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from jose import ExpiredSignatureError, JWTError, jwt
-
-from exceptions.security import InvalidTokenError, TokenExpiredError
-from security.interfaces import JWTAuthManagerInterface
 from config.settings import settings
+from exceptions.security import InvalidTokenError, TokenExpiredError
+from jose import ExpiredSignatureError, JWTError, jwt
+from security.interfaces import JWTAuthManagerInterface
 
 
 class JWTAuthManager(JWTAuthManagerInterface):
@@ -54,6 +53,7 @@ class JWTAuthManager(JWTAuthManagerInterface):
 
     def verify_access_token_or_raise(self, token: str) -> None:
         self.decode_access_token(token)
+
 
 def get_jwt_manager() -> JWTAuthManager:
     return JWTAuthManager(

@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-
 from database import get_redis
+from database.models import User
 from event_queue import EventQueueProducer
+from fastapi import APIRouter, Depends, HTTPException, status
 from schemas import EventsBatchCreateRequestSchema, EventsBatchResponseSchema
 from security.permissions import get_current_user
-from database.models import User
-
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -14,12 +12,10 @@ router = APIRouter(prefix="/events", tags=["Events"])
     "",
     status_code=status.HTTP_202_ACCEPTED,
     summary="Ingest events",
-    description="Accepts array of events and resending event"
+    description="Accepts array of events and resending event",
 )
 async def create_events(
-    batch: EventsBatchCreateRequestSchema,
-    current_user: User = Depends(get_current_user),
-    redis = Depends(get_redis)
+    batch: EventsBatchCreateRequestSchema, current_user: User = Depends(get_current_user), redis=Depends(get_redis)
 ) -> EventsBatchResponseSchema:
     try:
         producer = EventQueueProducer(redis)
@@ -32,9 +28,9 @@ async def create_events(
         )
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error enqueuing events: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error enqueuing events: {str(e)}"
         )
+
 
 @router.get(
     "/queue-status",
@@ -42,8 +38,8 @@ async def create_events(
     description="Returns current status of event queues",
 )
 async def get_queue_status(
-        current_user: User = Depends(get_current_user),
-        redis=Depends(get_redis),
+    current_user: User = Depends(get_current_user),
+    redis=Depends(get_redis),
 ):
     producer = EventQueueProducer(redis)
 

@@ -6,7 +6,6 @@ import sys
 from database import get_redis
 from event_queue import EventQueueConsumer
 
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",

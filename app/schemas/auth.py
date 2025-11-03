@@ -1,6 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
-
 from database.validators import validate_password_strength
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class UserRegisterSchema(BaseModel):

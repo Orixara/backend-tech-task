@@ -10,12 +10,10 @@ class BaseAppSettings(BaseSettings):
     DUCKDB_PATH: str = os.getenv("DUCKDB_PATH", str(BASE_DIR / "data" / "analytics.duckdb"))
 
     SECRET_KEY_ACCESS: str = os.getenv(
-        "SECRET_KEY_ACCESS",
-        "dev-secret-access-key-change-in-production-min-32-characters-long"
+        "SECRET_KEY_ACCESS", "dev-secret-access-key-change-in-production-min-32-characters-long"
     )
     SECRET_KEY_REFRESH: str = os.getenv(
-        "SECRET_KEY_REFRESH",
-        "dev-secret-refresh-key-change-in-production-min-32-characters-long"
+        "SECRET_KEY_REFRESH", "dev-secret-refresh-key-change-in-production-min-32-characters-long"
     )
     JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")
 
@@ -41,7 +39,6 @@ class Settings(BaseAppSettings):
     REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
-
 
     model_config = SettingsConfigDict(
         extra="ignore",

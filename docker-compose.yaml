@@ -61,6 +61,7 @@ services:
     networks:
       - events_network
 
+  # Workers
   worker:
     container_name: events_worker
     build:
@@ -77,6 +78,30 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - db
+      - redis
+    networks:
+      - events_network
+    restart: unless-stopped
+
+  archive_worker:
+    container_name: events_archive_worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: [ "sh", "/commands/start_archive_worker.sh" ]
+    volumes:
+      - ./app:/usr/src/app
+      - ./data:/usr/src/data
+      - ./commands:/commands
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:

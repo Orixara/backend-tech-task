@@ -14,10 +14,7 @@ class EventQueueProducer:
     def __init__(self, redis: Redis):
         self.redis = redis
 
-    async def enqueue_events(
-            self,
-            events: List[EventCreateRequestSchema]
-    ) -> int:
+    async def enqueue_events(self, events: List[EventCreateRequestSchema]) -> int:
         if not events:
             return 0
 

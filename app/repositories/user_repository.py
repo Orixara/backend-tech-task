@@ -1,11 +1,10 @@
 from typing import Optional
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from database.models import User
 from schemas.auth import UserRegisterSchema
 from security.passwords import hash_password, verify_password
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class UserRepository:
@@ -13,9 +12,7 @@ class UserRepository:
         self.db = db
 
     async def get_by_username(self, username: str) -> Optional[User]:
-        result = await self.db.execute(
-            select(User).where(User.username == username)
-        )
+        result = await self.db.execute(select(User).where(User.username == username))
         return result.scalar_one_or_none()
 
     async def create(self, user_data: UserRegisterSchema) -> User:
@@ -50,8 +47,6 @@ class UserRepository:
         return user is not None
 
     async def exists_by_email(self, email: str) -> bool:
-        result = await self.db.execute(
-            select(User).where(User.email == email)
-        )
+        result = await self.db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         return user is not None

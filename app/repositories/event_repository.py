@@ -13,10 +13,7 @@ class EventRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create_batch(
-            self,
-            events: List[EventCreateRequestSchema]
-    ) -> tuple[int, int]:
+    async def create_batch(self, events: List[EventCreateRequestSchema]) -> tuple[int, int]:
         if not events:
             return 0, 0
 
@@ -31,9 +28,7 @@ class EventRepository:
             for event in events
         ]
 
-        stmt = insert(Event).values(values).on_conflict_do_nothing(
-            index_elements=["event_id"]
-        ).returning(Event.id)
+        stmt = insert(Event).values(values).on_conflict_do_nothing(index_elements=["event_id"]).returning(Event.id)
 
         result = await self.db.execute(stmt)
         created_ids = result.scalars().all()
@@ -45,51 +40,27 @@ class EventRepository:
         return created_count, duplicates_count
 
     async def get_by_event_id(self, event_id: UUID) -> Event | None:
-        result = await self.db.execute(
-            select(Event).where(Event.event_id == event_id)
-        )
+        result = await self.db.execute(select(Event).where(Event.event_id == event_id))
         return result.scalar_one_or_none()
 
-    async def get_dau(
-            self,
-            start_date: datetime,
-            end_date: datetime
-    ) -> List[dict]:
+    async def get_dau(self, start_date: datetime, end_date: datetime) -> List[dict]:
         stmt = (
             select(
                 func.date(Event.occurred_at).label("date"),
                 func.count(func.distinct(Event.user_id)).label("unique_users"),
             )
-            .where(and_(
-                Event.occurred_at >= start_date,
-                Event.occurred_at <= end_date,
-                Event.is_archived == False
-            ))
+            .where(and_(Event.occurred_at >= start_date, Event.occurred_at <= end_date, Event.is_archived == False))
             .group_by(func.date(Event.occurred_at))
             .order_by(func.date(Event.occurred_at))
         )
 
         result = await self.db.execute(stmt)
-        return [
-            {
-                "date": row.date.isoformat(), "unique_users": row.unique_users
-            }
-            for row in result
-        ]
+        return [{"date": row.date.isoformat(), "unique_users": row.unique_users} for row in result]
 
-    async def get_top_events(
-            self,
-            start_date: datetime,
-            end_date: datetime,
-            limit: int = 10
-    ) -> List[dict]:
+    async def get_top_events(self, start_date: datetime, end_date: datetime, limit: int = 10) -> List[dict]:
         stmt = (
             select(Event.event_type, func.count().label("count"))
-            .where(and_(
-                Event.occurred_at >= start_date,
-                Event.occurred_at <= end_date,
-                Event.is_archived == False
-            ))
+            .where(and_(Event.occurred_at >= start_date, Event.occurred_at <= end_date, Event.is_archived == False))
             .group_by(Event.event_type)
             .order_by(func.count().desc())
             .limit(limit)
@@ -98,22 +69,14 @@ class EventRepository:
         result = await self.db.execute(stmt)
         return [{"event_type": row.event_type, "count": row.count} for row in result]
 
-    async def get_retention(
-            self,
-            start_date: datetime,
-            windows: int = 3,
-            period_type: str = "daily"
-    ) -> List[dict]:
+    async def get_retention(self, start_date: datetime, windows: int = 3, period_type: str = "daily") -> List[dict]:
         if period_type == "weekly":
             period_delta = timedelta(weeks=1)
         else:
             period_delta = timedelta(days=1)
 
         user_first_event = (
-            select(
-                Event.user_id,
-                func.date(func.min(Event.occurred_at)).label("cohort_date")
-            )
+            select(Event.user_id, func.date(func.min(Event.occurred_at)).label("cohort_date"))
             .where(Event.occurred_at >= start_date)
             .group_by(Event.user_id)
         ).subquery()
@@ -156,12 +119,7 @@ class EventRepository:
                 retention_pct = (returned_count / cohort_size * 100) if cohort_size > 0 else 0
                 periods[f"period_{period_num}"] = round(retention_pct, 2)
 
-            cohorts.append(
-                {
-                    "cohort_date": current_cohort_date.isoformat(),
-                    "users": cohort_size, **periods
-                }
-            )
+            cohorts.append({"cohort_date": current_cohort_date.isoformat(), "users": cohort_size, **periods})
 
             current_cohort_date = next_cohort_date
 

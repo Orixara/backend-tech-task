@@ -1,4 +1,5 @@
+from .event_hybrid_repository import EventHybridRepository
 from .event_repository import EventRepository
 from .user_repository import UserRepository
 
-__all__ = ["EventRepository", "UserRepository"]
+__all__ = ["EventRepository", "UserRepository", "EventHybridRepository"]

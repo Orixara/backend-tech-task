@@ -5,13 +5,11 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from database import get_db_contextmanager
+from redis.asyncio import Redis
 from repositories.event_repository import EventRepository
 from schemas.event import EventCreateRequestSchema
-
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +24,7 @@ class EventQueueConsumer:
     def __init__(self, redis: Redis):
         self.redis = redis
 
-    async def process_event(
-            self,
-            event_data: dict,
-            db: AsyncSession
-    ) -> bool:
+    async def process_event(self, event_data: dict, db: AsyncSession) -> bool:
         try:
             event = EventCreateRequestSchema(
                 event_id=UUID(event_data["event_id"]),
@@ -57,16 +51,14 @@ class EventQueueConsumer:
         retry_count = event_data.get("retry_count", 0)
         if retry_count < self.MAX_RETRIES:
             event_data["retry_count"] = retry_count + 1
-            delay = self.RETRY_DELAY_BASE ** retry_count
+            delay = self.RETRY_DELAY_BASE**retry_count
             logger.warning(
-                f"Event {event_data.get('event_id')} failed, "
-                f"retry {retry_count + 1}/{self.MAX_RETRIES} in {delay}s"
+                f"Event {event_data.get('event_id')} failed, " f"retry {retry_count + 1}/{self.MAX_RETRIES} in {delay}s"
             )
             await self.redis.rpush(self.RETRY_QUEUE_NAME, json.dumps(event_data))
         else:
             logger.error(
-                f"Event {event_data.get('event_id')} failed after "
-                f"{self.MAX_RETRIES} retries, moving to DLQ"
+                f"Event {event_data.get('event_id')} failed after " f"{self.MAX_RETRIES} retries, moving to DLQ"
             )
             await self.redis.rpush(self.DLQ_NAME, json.dumps(event_data))
 
