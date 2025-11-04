@@ -21,7 +21,11 @@ router = APIRouter(prefix="/stats", tags=["Statistics"])
     description="Get unique users count per day for date range",
 )
 async def get_dau(
-    from_date: str = Query(..., description="Start date (YYYY-MM-DD)", example="2025-01-01"),
+    from_date: str = Query(
+        ...,
+        description="Start date (YYYY-MM-DD)",
+        example="2025-01-01"
+    ),
     to_date: str = Query(
         ...,
         description="End date (YYYY-MM-DD)",
