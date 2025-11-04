@@ -58,6 +58,8 @@ services:
     volumes:
       - ./app:/usr/src/app
       - ./data:/usr/src/data
+      - ./commands:/commands
+      - ./services:/services
     networks:
       - events_network
 
