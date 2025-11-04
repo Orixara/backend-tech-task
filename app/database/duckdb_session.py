@@ -2,9 +2,9 @@ import logging
 from pathlib import Path
 
 from config.settings import settings
-from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class DuckDBConnection:
             connect_args={
                 "read_only": self._read_only,
             },
-            poolclass=StaticPool,
+            poolclass=NullPool,
             echo=False,
         )
 

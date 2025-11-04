@@ -113,6 +113,7 @@ async def get_retention(
     start_date: str = Query(..., description="Start date for cohorts (YYYY-MM-DD)", example="2025-01-01"),
     windows: int = Query(3, ge=1, le=10, description="Number of periods to track"),
     period_type: Literal["daily", "weekly"] = Query("daily", description="Period type: daily or weekly"),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     duckdb_conn=Depends(get_duckdb),
 ) -> RetentionResponseSchema:
