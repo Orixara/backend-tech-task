@@ -9,8 +9,8 @@ class EventCreateRequestSchema(BaseModel):
 
     event_id: UUID
     occurred_at: datetime
-    user_id: str
-    event_type: str
+    user_id: str = Field(..., min_length=1, max_length=100)
+    event_type: str = Field(..., min_length=1, max_length=100)
     properties: dict = Field(default_factory=dict)
 
     @field_validator("properties")
