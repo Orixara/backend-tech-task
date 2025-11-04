@@ -1,20 +1,21 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, Index, String, func
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.dialects.postgresql import UUID as PostgreSQL_UUID
+from sqlalchemy import Boolean, DateTime, Index, String, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
+from .types import UniversalUUID
 
 
 class Event(Base):
     __tablename__ = "events"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
     event_id: Mapped[UUID] = mapped_column(
-        PostgreSQL_UUID(as_uuid=True),
+        UniversalUUID,
         unique=True,
         nullable=False,
         default=uuid4,
@@ -32,7 +33,7 @@ class Event(Base):
         nullable=False,
     )
     properties: Mapped[dict] = mapped_column(
-        JSONB,
+        JSON,
         nullable=False,
         default=dict,
     )
