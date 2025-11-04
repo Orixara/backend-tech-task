@@ -55,7 +55,13 @@ class EventRepository:
         )
 
         result = await self.db.execute(stmt)
-        return [{"date": row.date.isoformat(), "unique_users": row.unique_users} for row in result]
+        return [
+            {
+                "date": row.date if isinstance(row.date, str) else row.date.isoformat(),
+                "unique_users": row.unique_users
+            }
+            for row in result
+        ]
 
     async def get_top_events(self, start_date: datetime, end_date: datetime, limit: int = 10) -> List[dict]:
         stmt = (
