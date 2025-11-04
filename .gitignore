@@ -45,3 +45,6 @@ Thumbs.db
 
 # Docker
 .dockerignore
+
+# Benchmark results
+benchmark_results.log
