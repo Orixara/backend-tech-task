@@ -1,16 +1,15 @@
-from typing import Annotated
-
-from database import get_db
-from database.models import User
-from exceptions.security import BaseSecurityError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from repositories.user_repository import UserRepository
-from security.interfaces import JWTAuthManagerInterface
-from security.token_manager import get_jwt_manager
 from sqlalchemy.ext.asyncio import AsyncSession
 
-bearer_scheme = HTTPBearer()
+from app.database import get_db
+from app.database.models import User
+from app.exceptions.security import BaseSecurityError
+from app.repositories.user_repository import UserRepository
+from app.security.interfaces import JWTAuthManagerInterface
+from app.security.token_manager import get_jwt_manager
+
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -18,6 +17,12 @@ async def get_current_user(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_manager),
     db: AsyncSession = Depends(get_db),
 ) -> User:
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     token = credentials.credentials
 
     try:

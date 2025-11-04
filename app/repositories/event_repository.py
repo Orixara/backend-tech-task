@@ -56,10 +56,7 @@ class EventRepository:
 
         result = await self.db.execute(stmt)
         return [
-            {
-                "date": row.date if isinstance(row.date, str) else row.date.isoformat(),
-                "unique_users": row.unique_users
-            }
+            {"date": row.date if isinstance(row.date, str) else row.date.isoformat(), "unique_users": row.unique_users}
             for row in result
         ]
 

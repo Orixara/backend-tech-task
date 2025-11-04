@@ -1,16 +1,18 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Literal
 
-from database import get_db, get_duckdb
-from database.models import User
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from repositories import EventHybridRepository
-from schemas import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db, get_duckdb
+from app.database.models import User
+from app.repositories import EventHybridRepository
+from app.schemas import (
     DAUResponseSchema,
     RetentionResponseSchema,
     TopEventsResponseSchema,
 )
-from security.permissions import get_current_user
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.security.permissions import get_current_user
 
 router = APIRouter(prefix="/stats", tags=["Statistics"])
 
@@ -21,11 +23,7 @@ router = APIRouter(prefix="/stats", tags=["Statistics"])
     description="Get unique users count per day for date range",
 )
 async def get_dau(
-    from_date: str = Query(
-        ...,
-        description="Start date (YYYY-MM-DD)",
-        example="2025-01-01"
-    ),
+    from_date: str = Query(..., description="Start date (YYYY-MM-DD)", example="2025-01-01"),
     to_date: str = Query(
         ...,
         description="End date (YYYY-MM-DD)",
@@ -37,7 +35,7 @@ async def get_dau(
 ) -> DAUResponseSchema:
     try:
         start_date = datetime.fromisoformat(from_date)
-        end_date = datetime.fromisoformat(to_date)
+        end_date = datetime.fromisoformat(to_date) + timedelta(days=1)
 
         if start_date > end_date:
             raise HTTPException(
@@ -54,6 +52,8 @@ async def get_dau(
             to_date=to_date,
         )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -82,7 +82,7 @@ async def get_top_events(
 ) -> TopEventsResponseSchema:
     try:
         start_date = datetime.fromisoformat(from_date)
-        end_date = datetime.fromisoformat(to_date)
+        end_date = datetime.fromisoformat(to_date) + timedelta(days=1)
 
         if start_date > end_date:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="from_date must be before to_date")
@@ -92,6 +92,8 @@ async def get_top_events(
 
         return TopEventsResponseSchema(data=top_events_data, from_date=from_date, to_date=to_date, limit=limit)
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid date format. Use YYYY-MM-DD: {str(e)}"
@@ -110,8 +112,7 @@ async def get_top_events(
 async def get_retention(
     start_date: str = Query(..., description="Start date for cohorts (YYYY-MM-DD)", example="2025-01-01"),
     windows: int = Query(3, ge=1, le=10, description="Number of periods to track"),
-    period_type: str = Query("daily", regex="^(daily|weekly)$", description="Period type: daily or weekly"),
-    current_user: User = Depends(get_current_user),
+    period_type: Literal["daily", "weekly"] = Query("daily", description="Period type: daily or weekly"),
     db: AsyncSession = Depends(get_db),
     duckdb_conn=Depends(get_duckdb),
 ) -> RetentionResponseSchema:
@@ -123,6 +124,8 @@ async def get_retention(
         return RetentionResponseSchema(
             cohorts=cohorts_data, start_date=start_date, windows=windows, period_type=period_type
         )
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid date format. Use YYYY-MM-DD: {str(e)}"

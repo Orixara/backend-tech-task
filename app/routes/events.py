@@ -1,9 +1,10 @@
-from database import get_redis
-from database.models import User
-from event_queue import EventQueueProducer
 from fastapi import APIRouter, Depends, HTTPException, status
-from schemas import EventsBatchCreateRequestSchema, EventsBatchResponseSchema
-from security.permissions import get_current_user
+
+from app.database import get_redis
+from app.database.models.user import User
+from app.event_queue.producer import EventQueueProducer
+from app.schemas.event import EventsBatchCreateRequestSchema, EventsBatchResponseSchema
+from app.security.permissions import get_current_user
 
 router = APIRouter(prefix="/events", tags=["Events"])
 

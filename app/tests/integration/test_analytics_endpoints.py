@@ -36,27 +36,33 @@ class TestAnalyticsEndpoints:
 
     @pytest.mark.asyncio
     async def test_dau_hybrid_merge_no_double_count(
-            self,
-            analytics_client: AsyncClient,
-            test_db_session: AsyncSession,
-            duckdb_write_session: Session,
+        self,
+        analytics_client: AsyncClient,
+        test_db_session: AsyncSession,
+        duckdb_write_session: Session,
     ):
         d0 = dt.datetime(2025, 1, 1, 10, tzinfo=UTC)
         d1 = dt.datetime(2025, 1, 2, 12, tzinfo=UTC)
         d2 = dt.datetime(2025, 1, 3, 9, tzinfo=UTC)
 
-        self._insert_duck(duckdb_write_session, [
-            self._make_event("u1", d0),
-            self._make_event("u2", d1),
-            self._make_event("u2", d2),  # CHANGED FROM u3 TO u2
-        ])
+        self._insert_duck(
+            duckdb_write_session,
+            [
+                self._make_event("u1", d0),
+                self._make_event("u2", d1),
+                self._make_event("u2", d2),  # CHANGED FROM u3 TO u2
+            ],
+        )
 
-        await self._insert_pg(test_db_session, [
-            self._make_event("u1", d1, etype="view"),
-            self._make_event("u3", d1, etype="view"),
-            self._make_event("u2", d2, etype="click"),
-            self._make_event("u2", d2, etype="purchase"),
-        ])
+        await self._insert_pg(
+            test_db_session,
+            [
+                self._make_event("u1", d1, etype="view"),
+                self._make_event("u3", d1, etype="view"),
+                self._make_event("u2", d2, etype="click"),
+                self._make_event("u2", d2, etype="purchase"),
+            ],
+        )
 
         response = await analytics_client.get("/stats/dau", params={"from_date": "2025-01-01", "to_date": "2025-01-03"})
         assert response.status_code == 200, response.text
@@ -70,30 +76,34 @@ class TestAnalyticsEndpoints:
 
     @pytest.mark.asyncio
     async def test_top_events_limit_and_merge(
-            self,
-            analytics_client: AsyncClient,
-            test_db_session: AsyncSession,
-            duckdb_write_session: Session,
+        self,
+        analytics_client: AsyncClient,
+        test_db_session: AsyncSession,
+        duckdb_write_session: Session,
     ):
         d = dt.datetime(2025, 2, 1, 8, tzinfo=UTC)
 
-        self._insert_duck(duckdb_write_session, [
-            self._make_event("u1", d, "click"),
-            self._make_event("u2", d, "click"),
-            self._make_event("u3", d, "view"),
-        ])
-        await self._insert_pg(test_db_session, [
-            self._make_event("u4", d, "click"),
-            self._make_event("u5", d, "purchase"),
-            self._make_event("u6", d, "view"),
-            self._make_event("u7", d, "view"),
-        ])
+        self._insert_duck(
+            duckdb_write_session,
+            [
+                self._make_event("u1", d, "click"),
+                self._make_event("u2", d, "click"),
+                self._make_event("u3", d, "view"),
+            ],
+        )
+        await self._insert_pg(
+            test_db_session,
+            [
+                self._make_event("u4", d, "click"),
+                self._make_event("u5", d, "purchase"),
+                self._make_event("u6", d, "view"),
+                self._make_event("u7", d, "view"),
+            ],
+        )
 
-        r = await analytics_client.get("/stats/top-events", params={
-            "from_date": "2025-02-01",
-            "to_date": "2025-02-01",
-            "limit": 2
-        })
+        r = await analytics_client.get(
+            "/stats/top-events", params={"from_date": "2025-02-01", "to_date": "2025-02-01", "limit": 2}
+        )
         assert r.status_code == 200, r.text
         rows = r.json()["data"]
         assert len(rows) == 2
@@ -105,32 +115,41 @@ class TestAnalyticsEndpoints:
 
     @pytest.mark.asyncio
     async def test_retention_daily(
-            self,
-            analytics_client: AsyncClient,
-            test_db_session: AsyncSession,
-            duckdb_write_session: Session,
+        self,
+        analytics_client: AsyncClient,
+        test_db_session: AsyncSession,
+        duckdb_write_session: Session,
     ):
         start = dt.date(2025, 3, 1)
         d0 = dt.datetime(2025, 3, 1, 10, tzinfo=UTC)
         d1 = dt.datetime(2025, 3, 2, 11, tzinfo=UTC)
         d2 = dt.datetime(2025, 3, 3, 9, tzinfo=UTC)
 
-        self._insert_duck(duckdb_write_session, [
-            self._make_event("u2", d0, "view"),
-            self._make_event("u1", d1, "view"),
-            self._make_event("u3", d1, "view"),
-        ])
-        await self._insert_pg(test_db_session, [
-            self._make_event("u1", d0, "click"),
-            self._make_event("u1", d2, "click"),
-            self._make_event("u2", d2, "purchase"),
-        ])
+        self._insert_duck(
+            duckdb_write_session,
+            [
+                self._make_event("u2", d0, "view"),
+                self._make_event("u1", d1, "view"),
+                self._make_event("u3", d1, "view"),
+            ],
+        )
+        await self._insert_pg(
+            test_db_session,
+            [
+                self._make_event("u1", d0, "click"),
+                self._make_event("u1", d2, "click"),
+                self._make_event("u2", d2, "purchase"),
+            ],
+        )
 
-        r = await analytics_client.get("/stats/retention", params={
-            "start_date": start.isoformat(),
-            "windows": 2,
-            "period_type": "daily",
-        })
+        r = await analytics_client.get(
+            "/stats/retention",
+            params={
+                "start_date": start.isoformat(),
+                "windows": 2,
+                "period_type": "daily",
+            },
+        )
         assert r.status_code == 200, r.text
         body = r.json()
 

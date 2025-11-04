@@ -1,9 +1,10 @@
+import logging
+from pathlib import Path
+
+from config.settings import settings
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
-from config.settings import settings
-from pathlib import Path
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +15,7 @@ class DuckDBConnection:
         self._engine = None
         self._session_factory = None
         self._read_only = read_only
-        logger.info(
-            f"Initializing DuckDB connection: path={self._db_path}, "
-            f"read_only={read_only}"
-        )
+        logger.info(f"Initializing DuckDB connection: path={self._db_path}, " f"read_only={read_only}")
 
     def _create_engine(self):
         if self._db_path == ":memory:":
@@ -68,9 +66,19 @@ class DuckDBConnection:
         try:
             logger.info("Initializing DuckDB schema using raw SQL")
             with self._engine.connect() as connection:
-                connection.execute(text("""
+                for stmt in ("INSTALL json", "LOAD json"):
+                    try:
+                        connection.execute(text(stmt))
+                    except Exception:
+                        pass
+
+                connection.execute(text("CREATE SEQUENCE IF NOT EXISTS events_id_seq START 1"))
+
+                connection.execute(
+                    text(
+                        """
                     CREATE TABLE IF NOT EXISTS events(
-                        id INTEGER PRIMARY KEY,
+                        id BIGINT PRIMARY KEY DEFAULT nextval('events_id_seq'),
                         event_id VARCHAR(36) UNIQUE NOT NULL,
                         occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
                         user_id VARCHAR(100) NOT NULL,
@@ -79,15 +87,24 @@ class DuckDBConnection:
                         created_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
                         is_archived BOOLEAN NOT NULL DEFAULT FALSE
                     )
-                """))
+                """
+                    )
+                )
 
-                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_events_user_occurred ON events (user_id, occurred_at)"))
                 connection.execute(
-                    text("CREATE INDEX IF NOT EXISTS ix_events_type_occurred ON events (event_type, occurred_at)"))
-                connection.execute(text(
-                    "CREATE INDEX IF NOT EXISTS ix_events_user_type_occurred ON events (user_id, event_type, occurred_at)"))
+                    text("CREATE INDEX IF NOT EXISTS ix_events_user_occurred ON events (user_id, occurred_at)")
+                )
                 connection.execute(
-                    text("CREATE INDEX IF NOT EXISTS ix_events_archived_occurred ON events (is_archived, occurred_at)"))
+                    text("CREATE INDEX IF NOT EXISTS ix_events_type_occurred ON events (event_type, occurred_at)")
+                )
+                connection.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_events_user_type_occurred ON events (user_id, event_type, occurred_at)"
+                    )
+                )
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_events_archived_occurred ON events (is_archived, occurred_at)")
+                )
 
                 connection.commit()
             logger.info("DuckDB schema initialized successfully")
@@ -107,11 +124,13 @@ class DuckDBConnection:
 _duckdb_write_conn: DuckDBConnection | None = None
 _duckdb_read_conn: DuckDBConnection | None = None
 
+
 def get_duckdb_engine():
     global _duckdb_write_conn
     if _duckdb_write_conn is None:
         _duckdb_write_conn = DuckDBConnection(read_only=False)
     return _duckdb_write_conn.get_engine()
+
 
 def get_duckdb_session() -> Session:
     global _duckdb_write_conn
@@ -119,17 +138,20 @@ def get_duckdb_session() -> Session:
         _duckdb_write_conn = DuckDBConnection(read_only=False)
     return _duckdb_write_conn.get_session()
 
+
 def get_duckdb_read_engine():
     global _duckdb_read_conn
     if _duckdb_read_conn is None:
         _duckdb_read_conn = DuckDBConnection(read_only=True)
     return _duckdb_read_conn.get_engine()
 
+
 def get_duckdb_read_session() -> Session:
     global _duckdb_read_conn
     if _duckdb_read_conn is None:
         _duckdb_read_conn = DuckDBConnection(read_only=True)
     return _duckdb_read_conn.get_session()
+
 
 def close_duckdb():
     global _duckdb_write_conn, _duckdb_read_conn
@@ -144,12 +166,14 @@ def close_duckdb():
 
     logger.info("All DuckDB connections closed")
 
+
 def get_duckdb_connection() -> DuckDBConnection:
     logger.warning("get_duckdb_connection() is deprecated, use get_duckdb_session() instead")
     global _duckdb_write_conn
     if _duckdb_write_conn is None:
         _duckdb_write_conn = DuckDBConnection(read_only=False)
     return _duckdb_write_conn
+
 
 def get_duckdb():
     logger.warning("get_duckdb() is deprecated, use get_duckdb_read_session() instead")

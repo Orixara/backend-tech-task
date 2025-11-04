@@ -1,5 +1,6 @@
 from uuid import UUID
-from sqlalchemy import TypeDecorator, String
+
+from sqlalchemy import String, TypeDecorator
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQL_UUID
 from sqlalchemy.types import CHAR
 
@@ -10,11 +11,10 @@ class UniversalUUID(TypeDecorator):
 
     python_type = UUID
 
-
     def load_dialect_impl(self, dialect):
-        if dialect.name == 'postgresql':
+        if dialect.name == "postgresql":
             return dialect.type_descriptor(PostgreSQL_UUID(as_uuid=True))
-        elif dialect.name == 'duckdb':
+        elif dialect.name == "duckdb":
             return dialect.type_descriptor(String(36))
         else:
             return dialect.type_descriptor(CHAR(36))
@@ -29,7 +29,7 @@ class UniversalUUID(TypeDecorator):
             except (ValueError, AttributeError):
                 raise ValueError(f"Invalid UUID value: {value}")
 
-        if dialect.name == 'postgresql':
+        if dialect.name == "postgresql":
             return value
         return str(value)
 

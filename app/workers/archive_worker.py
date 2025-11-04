@@ -6,8 +6,8 @@ from database import get_db_contextmanager
 from database.duckdb_session import get_duckdb_session
 from database.models import Event
 from sqlalchemy import and_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logging.basicConfig(
     level=logging.INFO,
@@ -112,11 +112,7 @@ class ArchiveWorker:
             raise
 
     async def _mark_as_archived(self, db: AsyncSession, event_ids: list[int]):
-        stmt = (
-            update(Event)
-            .where(Event.id.in_(event_ids))
-            .values(is_archived=True)
-        )
+        stmt = update(Event).where(Event.id.in_(event_ids)).values(is_archived=True)
 
         await db.execute(stmt)
         await db.commit()

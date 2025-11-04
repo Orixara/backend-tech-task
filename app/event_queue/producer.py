@@ -1,9 +1,9 @@
 import json
 from typing import List
-from uuid import UUID
 
 from redis.asyncio import Redis
-from schemas.event import EventCreateRequestSchema
+
+from app.schemas.event import EventCreateRequestSchema
 
 
 class EventQueueProducer:

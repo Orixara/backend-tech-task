@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 
-from database import close_redis_pool, get_redis_pool
 from fastapi import FastAPI
-from routes import auth_router, events_router, stats_router
+
+from app.database import close_redis_pool, get_redis_pool
+from app.routes import auth_router, events_router, stats_router
 
 
 @asynccontextmanager

@@ -1,7 +1,8 @@
+from datetime import datetime, timezone
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
-from uuid import uuid4
-from datetime import datetime, timezone
 
 
 class TestEventEndpoints:
@@ -15,7 +16,7 @@ class TestEventEndpoints:
                     "occurred_at": datetime.now(timezone.utc).isoformat(),
                     "user_id": "user123",
                     "event_type": "page_view",
-                    "properties": {"page": "/home"}
+                    "properties": {"page": "/home"},
                 }
             ]
         }
@@ -37,7 +38,7 @@ class TestEventEndpoints:
                     "occurred_at": datetime.now(timezone.utc).isoformat(),
                     "user_id": f"user{i}",
                     "event_type": "login",
-                    "properties": {}
+                    "properties": {},
                 }
                 for i in range(5)
             ]
@@ -59,7 +60,7 @@ class TestEventEndpoints:
                     "occurred_at": datetime.now(timezone.utc).isoformat(),
                     "user_id": "user123",
                     "event_type": "click",
-                    "properties": {}
+                    "properties": {},
                 }
             ]
         }
@@ -76,7 +77,7 @@ class TestEventEndpoints:
                     "event_id": str(uuid4()),
                     "occurred_at": datetime.now(timezone.utc).isoformat(),
                     "event_type": "page_view",
-                    "properties": {}
+                    "properties": {},
                 }
             ]
         }
@@ -87,9 +88,7 @@ class TestEventEndpoints:
 
     @pytest.mark.asyncio
     async def test_create_events_empty_batch(self, authenticated_client: AsyncClient):
-        event_data = {
-            "events": []
-        }
+        event_data = {"events": []}
 
         response = await authenticated_client.post("/events", json=event_data)
 
@@ -104,7 +103,7 @@ class TestEventEndpoints:
                     "occurred_at": datetime.now(timezone.utc).isoformat(),
                     "user_id": f"user{i}",
                     "event_type": "spam",
-                    "properties": {}
+                    "properties": {},
                 }
                 for i in range(1001)
             ]

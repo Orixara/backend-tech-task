@@ -1,13 +1,12 @@
+import logging
 from datetime import datetime, timedelta
 from typing import List
-import logging
 
 from database.duckdb_session import get_duckdb_read_session
-from sqlalchemy.orm import Session
 from database.models import Event
-from sqlalchemy import and_, func, select, Date, String
+from sqlalchemy import Date, String, and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -20,40 +19,44 @@ class EventHybridRepository:
     async def get_dau(self, start_date: datetime, end_date: datetime) -> List[dict]:
         try:
             logger.info(f"Querying hot storage for DAU: {start_date} to {end_date}")
-            hot_stmt = (
-                select(
-                    func.date(Event.occurred_at).label("date"),
-                    func.count(func.distinct(Event.user_id)).label("unique_users"),
-                )
-                .where(and_(Event.occurred_at >= start_date, Event.occurred_at <= end_date, Event.is_archived == False))
-                .group_by(func.date(Event.occurred_at))
-            )
 
+            hot_stmt = select(func.date(Event.occurred_at).label("date"), Event.user_id).where(
+                and_(Event.occurred_at >= start_date, Event.occurred_at < end_date, Event.is_archived == False)
+            )
             hot_result = await self.db.execute(hot_stmt)
-            hot_data = {row.date.isoformat(): row.unique_users for row in hot_result}
+
+            hot_data = {}
+            for row in hot_result:
+                date_str = str(row.date)
+                if date_str not in hot_data:
+                    hot_data[date_str] = set()
+                hot_data[date_str].add(row.user_id)
+
             logger.info(f"Hot storage returned {len(hot_data)} dates")
 
             logger.info(f"Querying cold storage (DuckDB) for DAU")
-            cold_stmt = (
-                select(
-                    func.cast(func.cast(Event.occurred_at, Date), String).label("date"),
-                    func.count(func.distinct(Event.user_id)).label("unique_users"),
-                )
-                .where(and_(Event.occurred_at >= start_date, Event.occurred_at <= end_date))
-                .group_by(func.cast(Event.occurred_at, Date))
+
+            cold_stmt = select(func.strftime(Event.occurred_at, "%Y-%m-%d").label("date"), Event.user_id).where(
+                and_(Event.occurred_at >= start_date, Event.occurred_at < end_date)
             )
-
             cold_result = self.duckdb_session.execute(cold_stmt)
-            cold_rows = cold_result.fetchall()
-            logger.info(f"Cold storage returned {len(cold_rows)} rows")
 
-            cold_data = {row.date: row.unique_users for row in cold_rows}
+            cold_data = {}
+            for row in cold_result:
+                if row.date not in cold_data:
+                    cold_data[row.date] = set()
+                cold_data[row.date].add(row.user_id)
+
+            logger.info(f"Cold storage returned {len(cold_data)} dates")
 
             all_dates = set(hot_data.keys()) | set(cold_data.keys())
             merged_data = []
 
             for date_str in sorted(all_dates):
-                unique_users = hot_data.get(date_str, 0) + cold_data.get(date_str, 0)
+                hot_users = hot_data.get(date_str, set())
+                cold_users = cold_data.get(date_str, set())
+                unique_users = len(hot_users | cold_users)
+
                 merged_data.append({"date": date_str, "unique_users": unique_users})
 
             logger.info(f"Merged data: {len(merged_data)} dates total")
@@ -68,7 +71,7 @@ class EventHybridRepository:
     async def get_top_events(self, start_date: datetime, end_date: datetime, limit: int = 10) -> List[dict]:
         hot_stmt = (
             select(Event.event_type, func.count().label("count"))
-            .where(and_(Event.occurred_at >= start_date, Event.occurred_at <= end_date, Event.is_archived == False))
+            .where(and_(Event.occurred_at >= start_date, Event.occurred_at < end_date, Event.is_archived == False))
             .group_by(Event.event_type)
         )
 
@@ -77,7 +80,7 @@ class EventHybridRepository:
 
         cold_stmt = (
             select(Event.event_type, func.count().label("count"))
-            .where(and_(Event.occurred_at >= start_date, Event.occurred_at <= end_date))
+            .where(and_(Event.occurred_at >= start_date, Event.occurred_at < end_date))
             .group_by(Event.event_type)
         )
 
@@ -94,17 +97,9 @@ class EventHybridRepository:
         merged_data.sort(key=lambda x: x["count"], reverse=True)
         return merged_data[:limit]
 
-    async def get_retention(
-            self,
-            start_date: datetime,
-            windows: int = 3,
-            period_type: str = "daily"
-    ) -> List[dict]:
+    async def get_retention(self, start_date: datetime, windows: int = 3, period_type: str = "daily") -> List[dict]:
         try:
-            logger.info(
-                f"Calculating retention: start={start_date}, "
-                f"windows={windows}, period={period_type}"
-            )
+            logger.info(f"Calculating retention: start={start_date}, " f"windows={windows}, period={period_type}")
 
             if period_type == "weekly":
                 period_delta = timedelta(weeks=1)
@@ -148,10 +143,7 @@ class EventHybridRepository:
             return cohorts
 
         except Exception as e:
-            logger.error(
-                f"Error in get_retention: {type(e).__name__}: {str(e)}",
-                exc_info=True
-            )
+            logger.error(f"Error in get_retention: {type(e).__name__}: {str(e)}", exc_info=True)
             raise
 
     async def _get_cohort_users(self, cohort_start: datetime.date, cohort_end: datetime.date) -> set[str]:
