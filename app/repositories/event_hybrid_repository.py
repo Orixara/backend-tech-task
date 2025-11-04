@@ -4,7 +4,7 @@ from typing import List
 
 from database.duckdb_session import get_duckdb_read_session
 from database.models import Event
-from sqlalchemy import Date, String, and_, func, select
+from sqlalchemy import Date, and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
