@@ -1,13 +1,13 @@
 import asyncio
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-import duckdb
-from database import get_db_contextmanager, get_duckdb
+from database import get_db_contextmanager
+from database.duckdb_session import get_duckdb_session
 from database.models import Event
 from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,14 +22,24 @@ class ArchiveWorker:
 
     def __init__(self):
         self.running = False
-        self.duckdb_conn: duckdb.DuckDBPyConnection | None = None
 
     async def start(self):
         logger.info("Starting Archive Worker")
-        self.duckdb_conn = get_duckdb()
+        self._ensure_duckdb_initialized()
         self.running = True
         logger.info("Archive Worker started")
         await self._archive_loop()
+
+    def _ensure_duckdb_initialized(self):
+        try:
+            with get_duckdb_session() as session:
+                result = session.execute(select(Event).limit(1))
+                result.fetchone()
+
+            logger.info("DuckDB connection and schema verified")
+        except Exception as e:
+            logger.error(f"Failed to initialize DuckDB: {e}", exc_info=True)
+            raise
 
     async def _archive_loop(self):
         while self.running:
@@ -39,7 +49,7 @@ class ArchiveWorker:
                 total_archived = await self._archive_old_events(cutoff_date)
 
                 logger.info(f"Archived {total_archived} events to DuckDB")
-                logger.info(f"Archived complete.")
+                logger.info(f"Archive complete.")
                 await asyncio.sleep(24 * 60 * 60)
             except Exception as e:
                 logger.error(f"Error in archive loop: {e}", exc_info=True)
@@ -69,51 +79,62 @@ class ArchiveWorker:
 
                 total_archived += len(events)
 
-                logger.info(f"Archived {len(events)} events " f"Total: {total_archived}")
+                logger.info(f"Archived {len(events)} events. Total: {total_archived}")
         return total_archived
 
     async def _write_to_duckdb(self, events: list[Event]):
         if not events:
             return
 
-        values = [
-            (
-                str(event.event_id),
-                event.occurred_at.isoformat(),
-                event.user_id,
-                event.event_type,
-                json.dumps(event.properties),
-                event.created_at.isoformat(),
-                datetime.now(timezone.utc).isoformat(),
-            )
-            for event in events
-        ]
+        try:
+            with get_duckdb_session() as duck_session:
+                events_data = [
+                    {
+                        "id": event.id,
+                        "event_id": event.event_id,
+                        "occurred_at": event.occurred_at,
+                        "user_id": event.user_id,
+                        "event_type": event.event_type,
+                        "properties": event.properties,
+                        "created_at": event.created_at,
+                        "is_archived": True,
+                    }
+                    for event in events
+                ]
 
-        self.duckdb_conn.executemany(
-            """
-            INSERT OR IGNORE INTO events (
-                event_id, occurred_at, user_id, event_type,
-                properties, created_at, archived_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            values,
-        )
+                stmt = sqlite_insert(Event).values(events_data)
+                stmt = stmt.prefix_with("OR IGNORE")
+                duck_session.execute(stmt)
+                duck_session.commit()
+                logger.debug(f"Successfully wrote {len(events)} events to DuckDB")
+        except Exception as e:
+            logger.error(f"Error writing to DuckDB: {e}", exc_info=True)
+            raise
 
     async def _mark_as_archived(self, db: AsyncSession, event_ids: list[int]):
-        stmt = update(Event).where(Event.id.in_(event_ids)).values(is_archived=True)
+        stmt = (
+            update(Event)
+            .where(Event.id.in_(event_ids))
+            .values(is_archived=True)
+        )
 
         await db.execute(stmt)
         await db.commit()
 
+        logger.debug(f"Marked {len(event_ids)} events as archived in PostgreSQL")
+
 
 async def main():
     worker = ArchiveWorker()
-    await worker.start()
+    try:
+        await worker.start()
+    except KeyboardInterrupt:
+        logger.info("Archive worker interrupted by user")
+        worker.running = False
+    except Exception as e:
+        logger.error(f"Archive worker failed: {e}", exc_info=True)
+        raise
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Archive worker interrupted")
+    asyncio.run(main())

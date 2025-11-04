@@ -1,50 +1,69 @@
 from datetime import datetime, timedelta
 from typing import List
+import logging
 
-import duckdb
+from database.duckdb_session import get_duckdb_read_session
+from sqlalchemy.orm import Session
 from database.models import Event
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, Date, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+logger = logging.getLogger(__name__)
+
+
 class EventHybridRepository:
-    def __init__(self, db: AsyncSession, duckdb_conn: duckdb.DuckDBPyConnection):
+    def __init__(self, db: AsyncSession, duckdb_session: Session = None):
         self.db = db
-        self.duckdb_conn = duckdb_conn
+        self.duckdb_session = duckdb_session or get_duckdb_read_session()
 
     async def get_dau(self, start_date: datetime, end_date: datetime) -> List[dict]:
-        hot_stmt = (
-            select(
-                func.date(Event.occurred_at).label("date"),
-                func.count(func.distinct(Event.user_id)).label("unique_users"),
+        try:
+            logger.info(f"Querying hot storage for DAU: {start_date} to {end_date}")
+            hot_stmt = (
+                select(
+                    func.date(Event.occurred_at).label("date"),
+                    func.count(func.distinct(Event.user_id)).label("unique_users"),
+                )
+                .where(and_(Event.occurred_at >= start_date, Event.occurred_at <= end_date, Event.is_archived == False))
+                .group_by(func.date(Event.occurred_at))
             )
-            .where(and_(Event.occurred_at >= start_date, Event.occurred_at <= end_date, Event.is_archived == False))
-            .group_by(func.date(Event.occurred_at))
-        )
 
-        hot_result = await self.db.execute(hot_stmt)
-        hot_data = {row.date.isoformat(): row.unique_users for row in hot_result}
+            hot_result = await self.db.execute(hot_stmt)
+            hot_data = {row.date.isoformat(): row.unique_users for row in hot_result}
+            logger.info(f"Hot storage returned {len(hot_data)} dates")
 
-        cold_query = """
-            SELECT 
-                DATE(occurred_at) as date,
-                COUNT(DISTINCT user_id) as unique_users
-            FROM events
-            WHERE occurred_at >= ? AND occurred_at <= ?
-            GROUP BY DATE(occurred_at)
-        """
+            logger.info(f"Querying cold storage (DuckDB) for DAU")
+            cold_stmt = (
+                select(
+                    func.cast(func.cast(Event.occurred_at, Date), String).label("date"),
+                    func.count(func.distinct(Event.user_id)).label("unique_users"),
+                )
+                .where(and_(Event.occurred_at >= start_date, Event.occurred_at <= end_date))
+                .group_by(func.cast(Event.occurred_at, Date))
+            )
 
-        cold_result = self.duckdb_conn.execute(cold_query, [start_date.isoformat(), end_date.isoformat()]).fetchall()
+            cold_result = self.duckdb_session.execute(cold_stmt)
+            cold_rows = cold_result.fetchall()
+            logger.info(f"Cold storage returned {len(cold_rows)} rows")
 
-        cold_data = {row[0].isoformat(): row[1] for row in cold_result}
+            cold_data = {row.date: row.unique_users for row in cold_rows}
 
-        all_dates = set(hot_data.keys()) | set(cold_data.keys())
-        merged_data = []
+            all_dates = set(hot_data.keys()) | set(cold_data.keys())
+            merged_data = []
 
-        for date_str in sorted(all_dates):
-            unique_users = hot_data.get(date_str, 0) + cold_data.get(date_str, 0)
-            merged_data.append({"date": date_str, "unique_users": unique_users})
-        return merged_data
+            for date_str in sorted(all_dates):
+                unique_users = hot_data.get(date_str, 0) + cold_data.get(date_str, 0)
+                merged_data.append({"date": date_str, "unique_users": unique_users})
+
+            logger.info(f"Merged data: {len(merged_data)} dates total")
+            return merged_data
+        except Exception as e:
+            logger.error(
+                f"Error in get_dau: {type(e).__name__}: {str(e)}",
+                exc_info=True,
+            )
+            raise
 
     async def get_top_events(self, start_date: datetime, end_date: datetime, limit: int = 10) -> List[dict]:
         hot_stmt = (
@@ -56,18 +75,14 @@ class EventHybridRepository:
         hot_result = await self.db.execute(hot_stmt)
         hot_data = {row.event_type: row.count for row in hot_result}
 
-        cold_query = """
-            SELECT
-                event_type,
-                COUNT(*) as count
-            FROM events
-            WHERE occurred_at >= ? AND occurred_at <= ?
-            GROUP BY event_type
-        """
+        cold_stmt = (
+            select(Event.event_type, func.count().label("count"))
+            .where(and_(Event.occurred_at >= start_date, Event.occurred_at <= end_date))
+            .group_by(Event.event_type)
+        )
 
-        cold_result = self.duckdb_conn.execute(cold_query, [start_date.isoformat(), end_date.isoformat()]).fetchall()
-
-        cold_data = {row[0]: row[1] for row in cold_result}
+        cold_result = self.duckdb_session.execute(cold_stmt)
+        cold_data = {row.event_type: row.count for row in cold_result}
 
         all_event_types = set(hot_data.keys()) | set(cold_data.keys())
         merged_data = []
@@ -79,45 +94,65 @@ class EventHybridRepository:
         merged_data.sort(key=lambda x: x["count"], reverse=True)
         return merged_data[:limit]
 
-    async def get_retention(self, start_date: datetime, windows: int = 3, period_type: str = "daily") -> List[dict]:
-        if period_type == "weekly":
-            period_delta = timedelta(weeks=1)
-        else:
-            period_delta = timedelta(days=1)
+    async def get_retention(
+            self,
+            start_date: datetime,
+            windows: int = 3,
+            period_type: str = "daily"
+    ) -> List[dict]:
+        try:
+            logger.info(
+                f"Calculating retention: start={start_date}, "
+                f"windows={windows}, period={period_type}"
+            )
 
-        cohorts = []
-        current_cohort_date = start_date.date()
-        end_date = datetime.now().date()
+            if period_type == "weekly":
+                period_delta = timedelta(weeks=1)
+            else:
+                period_delta = timedelta(days=1)
 
-        while current_cohort_date <= end_date:
-            next_cohort_date = current_cohort_date + period_delta
+            cohorts = []
+            current_cohort_date = start_date.date()
+            end_date = datetime.now().date()
 
-            cohort_user_ids = await self._get_cohort_users(current_cohort_date, next_cohort_date)
+            while current_cohort_date <= end_date:
+                next_cohort_date = current_cohort_date + period_delta
 
-            if not cohort_user_ids:
+                cohort_user_ids = await self._get_cohort_users(current_cohort_date, next_cohort_date)
+
+                if not cohort_user_ids:
+                    current_cohort_date = next_cohort_date
+                    continue
+
+                cohort_size = len(cohort_user_ids)
+                periods = {"period_0": 100.0}
+
+                for period_num in range(1, windows + 1):
+                    period_start = current_cohort_date + (period_delta * period_num)
+                    period_end = period_start + period_delta
+
+                    returned_users = await self._get_returned_users_set(list(cohort_user_ids), period_start, period_end)
+                    returned_count = len(returned_users)
+
+                    retention_pct = (returned_count / cohort_size * 100) if cohort_size > 0 else 0
+                    periods[f"period_{period_num}"] = round(retention_pct, 2)
+
+                cohorts.append({"cohort_date": current_cohort_date.isoformat(), "users": cohort_size, **periods})
+
                 current_cohort_date = next_cohort_date
-                continue
 
-            cohort_size = len(cohort_user_ids)
-            periods = {"period_0": 100.0}
+                if len(cohorts) >= 10:
+                    break
 
-            for period_num in range(1, windows + 1):
-                period_start = current_cohort_date + (period_delta * period_num)
-                period_end = period_start + period_delta
+            logger.info(f"Retention calculation complete: {len(cohorts)} cohorts found")
+            return cohorts
 
-                returned_count = await self._get_returned_users_count(cohort_user_ids, period_start, period_end)
-
-                retention_pct = (returned_count / cohort_size * 100) if cohort_size > 0 else 0
-                periods[f"period_{period_num}"] = round(retention_pct, 2)
-
-            cohorts.append({"cohort_date": current_cohort_date.isoformat(), "users": cohort_size, **periods})
-
-            current_cohort_date = next_cohort_date
-
-            if len(cohorts) >= 10:
-                break
-
-        return cohorts
+        except Exception as e:
+            logger.error(
+                f"Error in get_retention: {type(e).__name__}: {str(e)}",
+                exc_info=True
+            )
+            raise
 
     async def _get_cohort_users(self, cohort_start: datetime.date, cohort_end: datetime.date) -> set[str]:
         hot_stmt = (
@@ -133,59 +168,23 @@ class EventHybridRepository:
         )
 
         hot_result = await self.db.execute(hot_stmt)
-        hot_users = {row[0] for row in hot_result}
+        hot_users = set(hot_result.scalars())
 
-        cold_query = """
-            SELECT DISTINCT user_id
-            FROM events
-            WHERE DATE(occurred_at) >= ? AND DATE(occurred_at) < ?
-        """
-
-        cold_result = self.duckdb_conn.execute(
-            cold_query, [cohort_start.isoformat(), cohort_end.isoformat()]
-        ).fetchall()
-
-        cold_users = {row[0] for row in cold_result}
-
-        return hot_users | cold_users
-
-    async def _get_returned_users_count(
-        self,
-        cohort_user_ids: set[str],
-        period_start: datetime.date,
-        period_end: datetime.date,
-    ) -> int:
-        user_ids_list = list(cohort_user_ids)
-
-        hot_stmt = select(func.count(func.distinct(Event.user_id))).where(
-            and_(
-                Event.user_id.in_(user_ids_list),
-                Event.occurred_at >= period_start,
-                Event.occurred_at < period_end,
-                Event.is_archived == False,
+        cold_stmt = (
+            select(Event.user_id)
+            .where(
+                and_(
+                    func.cast(Event.occurred_at, Date) >= cohort_start,
+                    func.cast(Event.occurred_at, Date) < cohort_end,
+                )
             )
+            .distinct()
         )
 
-        hot_result = await self.db.execute(hot_stmt)
-        hot_count = hot_result.scalar() or 0
+        cold_result = self.duckdb_session.execute(cold_stmt)
+        cold_users = set(cold_result.scalars())
 
-        placeholders = ",".join(["?" for _ in user_ids_list])
-
-        cold_query = f"""
-            SELECT COUNT(DISTINCT user_id)
-            FROM events
-            WHERE user_id IN ({placeholders})
-            AND occurred_at >= ?
-            AND occurred_at <= ?
-        """
-
-        params = user_ids_list + [period_start.isoformat(), period_end.isoformat()]
-        cold_result = self.duckdb_conn.execute(cold_query, params).fetchone()
-        cold_count = cold_result[0] if cold_result else 0
-
-        all_returned_users = await self._get_returned_users_set(user_ids_list, period_start, period_end)
-
-        return len(all_returned_users)
+        return hot_users | cold_users
 
     async def _get_returned_users_set(
         self, cohort_user_ids: list[str], period_start: datetime.date, period_end: datetime.date
@@ -204,19 +203,21 @@ class EventHybridRepository:
         )
 
         hot_result = await self.db.execute(hot_stmt)
-        hot_users = {row[0] for row in hot_result}
+        hot_users = set(hot_result.scalars())
 
-        placeholders = ",".join(["?" for _ in cohort_user_ids])
-        cold_query = f"""
-            SELECT DISTINCT user_id
-            FROM events
-            WHERE user_id IN ({placeholders})
-            AND occurred_at >= ?
-            AND occurred_at < ?
-        """
+        cold_stmt = (
+            select(Event.user_id)
+            .where(
+                and_(
+                    Event.user_id.in_(cohort_user_ids),
+                    Event.occurred_at >= period_start,
+                    Event.occurred_at < period_end,
+                )
+            )
+            .distinct()
+        )
 
-        params = cohort_user_ids + [period_start.isoformat(), period_end.isoformat()]
-        cold_result = self.duckdb_conn.execute(cold_query, params).fetchall()
-        cold_users = {row[0] for row in cold_result}
+        cold_result = self.duckdb_session.execute(cold_stmt)
+        cold_users = set(cold_result.scalars())
 
         return hot_users | cold_users
