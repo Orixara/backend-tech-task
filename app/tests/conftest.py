@@ -40,6 +40,7 @@ TestAsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
     expire_on_commit=False,
 )
 
+
 @pytest_asyncio.fixture(scope="function")
 async def async_db_session(test_db_session: AsyncSession) -> AsyncSession:
     return test_db_session
