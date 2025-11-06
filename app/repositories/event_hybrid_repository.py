@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import List
@@ -15,6 +16,9 @@ class EventHybridRepository:
     def __init__(self, db: AsyncSession, duckdb_session: Session = None):
         self.db = db
         self.duckdb_session = duckdb_session or get_duckdb_read_session()
+
+    async def _execute_duckdb_query(self, stmt):
+        return await asyncio.to_thread(self.duckdb_session.execute, stmt)
 
     async def get_dau(self, start_date: datetime, end_date: datetime) -> List[dict]:
         try:
@@ -39,7 +43,7 @@ class EventHybridRepository:
             cold_stmt = select(func.strftime(Event.occurred_at, "%Y-%m-%d").label("date"), Event.user_id).where(
                 and_(Event.occurred_at >= start_date, Event.occurred_at < end_date)
             )
-            cold_result = self.duckdb_session.execute(cold_stmt)
+            cold_result = await self._execute_duckdb_query(cold_stmt)
 
             cold_data = {}
             for row in cold_result:
@@ -84,7 +88,7 @@ class EventHybridRepository:
             .group_by(Event.event_type)
         )
 
-        cold_result = self.duckdb_session.execute(cold_stmt)
+        cold_result = await self._execute_duckdb_query(cold_stmt)
         cold_data = {row.event_type: row.count for row in cold_result}
 
         all_event_types = set(hot_data.keys()) | set(cold_data.keys())
@@ -173,7 +177,7 @@ class EventHybridRepository:
             .distinct()
         )
 
-        cold_result = self.duckdb_session.execute(cold_stmt)
+        cold_result = await self._execute_duckdb_query(cold_stmt)
         cold_users = set(cold_result.scalars())
 
         return hot_users | cold_users
@@ -209,7 +213,7 @@ class EventHybridRepository:
             .distinct()
         )
 
-        cold_result = self.duckdb_session.execute(cold_stmt)
+        cold_result = await self._execute_duckdb_query(cold_stmt)
         cold_users = set(cold_result.scalars())
 
         return hot_users | cold_users
